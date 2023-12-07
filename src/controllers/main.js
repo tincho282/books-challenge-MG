@@ -1,12 +1,12 @@
-const bcryptjs = require('bcryptjs');
-const db = require('../database/models');
+const bcryptjs = require("bcryptjs");
 const { Sequelize } = require("../database/models");
+const db = require("../database/models");
 const Op = Sequelize.Op;
 
 const mainController = {
   home: (req, res) => {
     db.Book.findAll({
-      include: [{ association: 'authors' }]
+      include: [{ association: "authors" }],
     })
       .then((books) => {
         res.render("home", { books, message: req.session.message });
@@ -22,13 +22,12 @@ const mainController = {
         res.render("bookDetail", { book, message: req.session.message });
       })
       .catch((error) => console.log(error));
-    // Implement look for details in the database
   },
   bookSearch: (req, res) => {
     res.render("search", { books: [] , message: req.session.message});
   },
   bookSearchResult: (req, res) => {
-        let keyword = req.body.title;
+    let keyword = req.body.title;
     console.log(keyword);
     if (keyword.length == 0) {
       res.render("search", { books: [] , message: req.session.message });
@@ -47,7 +46,6 @@ const mainController = {
       .catch((error) => console.log(error));
   },
   deleteBook: (req, res) => {
-    // Implement delete book
     db.Book.findAll({
       include: [{ association: "authors" }],
       where: {
@@ -56,9 +54,9 @@ const mainController = {
         }
       }
     })
-      .then(books => {
+      .then( books => {
         res.render('home', { books, message: req.session.message })
-      })
+      } )
   },
   authors: (req, res) => {
     db.Author.findAll()
@@ -68,7 +66,7 @@ const mainController = {
       .catch((error) => console.log(error));
   },
   authorBooks: (req, res) => {
-        db.Author.findAll({
+    db.Author.findAll({
       include: [{ association: "books" }],
       where: {
         id: req.params.id,
@@ -96,7 +94,7 @@ const mainController = {
       .catch((error) => console.log(error));
   },
   login: (req, res) => {
-        const cookieValue = req.cookies.usuario
+    const cookieValue = req.cookies.usuario
 
     if(cookieValue){
       res.render("login", { email: cookieValue , message: req.session.message });
@@ -105,8 +103,8 @@ const mainController = {
     }
 
   },
-  processLogin: async (req, res) => {
-    // Implement login process
+  processLogin: async(req, res) => {
+
     const userToValidate = {
       email: req.body.email,
       password: req.body.password,
@@ -137,7 +135,7 @@ const mainController = {
         res.redirect('/')
         } else {
           req.session.message = {
-            error: `Contraseña Incorrecta, verifique por favor`
+            error: `Datos Incorrectos, verifique por favor`
           }  
           res.render("login", { email: req.cookies.usuario, message:req.session.message });
         }
@@ -149,7 +147,7 @@ const mainController = {
       }
     })
 
-
+    
   },
   logout: async(req , res) =>{
     const books = await db.Book.findAll({ include: [{ association: "authors" }]})
