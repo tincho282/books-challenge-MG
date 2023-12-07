@@ -47,15 +47,15 @@ const mainController = {
       .catch((error) => console.log(error));
   },
   deleteBook: (req, res) => {
-    // Implement delete book
+      // Implement delete book
     db.Book.findAll({
-      include: [{ association: "authors" }],
-      where: {
-        id: {
+include: [{ association: "authors" }],
+        where: {
+          id: {
           [Op.ne]: req.params.id
         }
       }
-    })
+      })
       .then( books => {
         res.render('home', { books, message: req.session.message })
       } )
@@ -137,7 +137,7 @@ const mainController = {
         res.redirect('/')
         } else {
           req.session.message = {
-            error: `Datos Incorrectos, verifique por favor`
+            error: `Contraseña Incorrecta, verifique por favor`
           }  
           res.render("login", { email: req.cookies.usuario, message:req.session.message });
         }
