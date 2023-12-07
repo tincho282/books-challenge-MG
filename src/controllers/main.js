@@ -47,18 +47,18 @@ const mainController = {
       .catch((error) => console.log(error));
   },
   deleteBook: (req, res) => {
-      // Implement delete book
+    // Implement delete book
     db.Book.findAll({
-include: [{ association: "authors" }],
-        where: {
-          id: {
+      include: [{ association: "authors" }],
+      where: {
+        id: {
           [Op.ne]: req.params.id
         }
       }
-      })
-      .then( books => {
+    })
+      .then(books => {
         res.render('home', { books, message: req.session.message })
-      } )
+      })
   },
   authors: (req, res) => {
     db.Author.findAll()
