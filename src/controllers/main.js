@@ -1,7 +1,7 @@
 const bcryptjs = require("bcryptjs");
-const { Sequelize } = require("../database/models");
 const db = require("../database/models");
-const Op = Sequelize.Op;
+const { validationResult } = require("express-validator");
+const { Association } = require("sequelize");
 
 const mainController = {
   home: (req, res) => {
@@ -9,180 +9,179 @@ const mainController = {
       include: [{ association: "authors" }],
     })
       .then((books) => {
-        res.render("home", { books, message: req.session.message });
+        res.render("home", { books });
       })
       .catch((error) => console.log(error));
   },
-  bookDetail: (req, res) => {
-    let idReference = req.params.id;
-    db.Book.findByPk(idReference, {
+  bookDetail: async (req, res) => {
+    const { id } = req.params;
+
+    const book = await db.Book.findByPk(id, {
       include: [{ association: "authors" }],
-    })
-      .then((book) => {
-        res.render("bookDetail", { book, message: req.session.message });
-      })
-      .catch((error) => console.log(error));
+    });
+
+    res.render("bookDetail", { book });
   },
   bookSearch: (req, res) => {
-    res.render("search", { books: [] , message: req.session.message});
+    res.render("search", { books: [] });
   },
-  bookSearchResult: (req, res) => {
-    let keyword = req.body.title;
-    console.log(keyword);
-    if (keyword.length == 0) {
-      res.render("search", { books: [] , message: req.session.message });
-    }
-    db.Book.findAll({
+  bookSearchResult: async (req, res) => {
+    // Implement search by title
+
+    const { title } = req.body;
+    console.log(title);
+    const books = await db.Book.findAll({
       include: [{ association: "authors" }],
       where: {
         title: {
-          [Op.like]: `%${keyword}%`,
+          [db.Sequelize.Op.like]: `%${title}%`,
         },
       },
-    })
-      .then((books) => {
-        res.render("search", { books, message: req.session.message });
-      })
-      .catch((error) => console.log(error));
+    });
+
+    res.render("search", { books });
   },
-  deleteBook: (req, res) => {
-    db.Book.findAll({
-      include: [{ association: "authors" }],
-      where: {
-        id: {
-          [Op.ne]: req.params.id
-        }
-      }
-    })
-      .then( books => {
-        res.render('home', { books, message: req.session.message })
-      } )
+  deleteBook: async (req, res) => {
+    const {id} = req.params;
+
+  try {
+    // Buscar el libro por su ID incluyendo la relación con el autor
+    const bookToDelete = await db.Book.findByPk(id, { include: [{association:"authors"}] });
+
+    if (!bookToDelete) {
+      return res.status(404).json({ error: 'Libro no encontrado' });
+    }
+    await bookToDelete.setAuthors([]);
+    // Realizar la eliminación del libro
+    await bookToDelete.destroy();
+
+    return res.redirect("/");
+  } catch (error) {
+    return res.status(500).json({ error: 'Error al eliminar el libro', details: error.message });
+  }
+
   },
   authors: (req, res) => {
     db.Author.findAll()
       .then((authors) => {
-        res.render("authors", { authors, message: req.session.message });
+        res.render("authors", { authors });
       })
       .catch((error) => console.log(error));
   },
-  authorBooks: (req, res) => {
-    db.Author.findAll({
-      include: [{ association: "books" }],
+  authorBooks: async (req, res) => {
+    const { id } = req.params;
+    const books = await db.Book.findAll({
+      include: [{ association: "authors" }],
       where: {
-        id: req.params.id,
+        "$authors.id$": id,
       },
-    })
-      .then((authorBooks) => {
-        res.render("authorBooks", { books: authorBooks[0].books, message: req.session.message });
-      })
-      .catch((error) => console.log(error));
+    });
+    res.render("authorBooks", { books });
   },
   register: (req, res) => {
-    res.render("register", {message: req.session.message});
+    res.render("register", { message: null });
   },
-  processRegister: (req, res) => {
-    db.User.create({
-      Name: req.body.name,
-      Email: req.body.email,
-      Country: req.body.country,
-      Pass: bcryptjs.hashSync(req.body.password, 10),
-      CategoryId: req.body.category,
-    })
-      .then(() => {
-        res.redirect("/");
-      })
-      .catch((error) => console.log(error));
-  },
-  login: (req, res) => {
-    const cookieValue = req.cookies.usuario
+  processRegister: async (req, res) => {
 
-    if(cookieValue){
-      res.render("login", { email: cookieValue , message: req.session.message });
-    }else{
-      res.render("login", { email:"" , message: req.session.message });
+    const results = validationResult(req)
+
+    if (!results.isEmpty()) {
+      return res.render("register", { message: results.array()[0].msg });
     }
 
-  },
-  processLogin: async(req, res) => {
+    const { name, email, country, password, category } = req.body;
 
-    const userToValidate = {
-      email: req.body.email,
-      password: req.body.password,
-    };
-    
-    if(userToValidate.email.length != 0){
-      res.cookie("usuario", userToValidate.email)
-    }
-    
-    const books = await db.Book.findAll({ include: [{ association: "authors" }]})
-    const userFound = db.User.findOne({
+    const userExists = await db.User.findOne({
       where: {
-        email: userToValidate.email,
-      }
-    });
-
-    userFound.then( user => {
-      if(user){
-
-        let comparePassword = bcryptjs.compareSync(userToValidate.password, user.Pass);
-
-        if (comparePassword) {
-          req.session.message = {
-            success: `Usuario ${user.Name} logueado`,
-            rol: `${user.CategoryId }` 
-          }    
-
-        res.redirect('/')
-        } else {
-          req.session.message = {
-            error: `Datos Incorrectos, verifique por favor`
-          }  
-          res.render("login", { email: req.cookies.usuario, message:req.session.message });
-        }
-      }else{
-        req.session.message = {
-          error: `Datos Incorrectos, verifique por favor`
-        }  
-        res.render("login", { email: req.cookies.usuario, message:req.session.message });
-      }
-    })
-
-    
-  },
-  logout: async(req , res) =>{
-    const books = await db.Book.findAll({ include: [{ association: "authors" }]})
-    req.session.destroy();
-    res.redirect('/')
-  },
-  edit: (req, res) => {
-    let idReference = req.params.id;
-    db.Book.findByPk(idReference).then((book) => {
-      res.render("editBook", { book , message: req.session.message });
-    });
-  },
-  processEdit: (req, res) => {
-    const { title, cover, description } = req.body;
-
-    let editedBook = {
-      title,
-      cover,
-      description,
-    };
-
-    db.Book.update(editedBook, {
-      where: {
-        id: req.params.id,
+        email,
       },
     });
 
-    db.Book.findAll({
-      include: [{ association: "authors" }],
+    if (userExists) {
+      return res.render("register", { message: "El correo ya se encuentra registrado." });
+    }
+
+    if (!validateEmail(email)) {
+      return res.render("register", { message: "El correo es incorrecto" });
+    }
+
+    await db.User.create({
+      Name: name,
+      Email: email,
+      Country: country,
+      Pass: bcryptjs.hashSync(password, 10),
+      CategoryId: category,
     })
-      .then((books) => {
-        res.redirect('/')
-      })
-      .catch((error) => console.log(error));
+
+    res.redirect("/");
   },
+  login: async (req, res) => {
+    const { usuario } = req.cookies;
+
+    if (usuario) {
+      return res.redirect("/");
+    }
+
+    res.render("login", { message: null });
+  },
+  processLogin: async (req, res) => {
+    const results = validationResult(req)
+
+    if (!results.isEmpty()) {
+      return res.render("login", { message: results.array()[0].msg });
+    }
+
+    const { email, password } = req.body;
+
+    const { dataValues } = await db.User.findOne({
+      where: {
+        email,
+      },
+    });
+
+    const { Pass, ...user } = dataValues;
+
+    if (!user) {
+      return res.render("login", {
+        message: "El correo o la contraseña no son validas.",
+      });
+    }
+
+    const passwordValid = bcryptjs.compareSync(password, Pass);
+
+    if (!passwordValid) {
+      return res.render("login", {
+        message: "El correo o la contraseña no son validas.",
+      });
+    }
+
+    req.session.usuario = user;
+    req.session.save(() => {
+      res.cookie("usuario", user, { maxAge: 1000 * 60 * 60 * 24 });
+
+      return res.redirect("/");
+    });
+  },
+  edit: async (req, res) => {
+    const { id } = req.params;
+    const book = await db.Book.findByPk(id);
+
+    res.render("editBook", { id: req.params.id, book });
+  },
+  processEdit: async (req, res) => {
+    const { title, cover, description } = req.body;
+    if (title && cover && description) {
+      await db.Book.update({ title, cover, description }, { where: { id: req.params.id } })
+      return res.redirect('/');
+    }
+
+    return res.redirect("/")
+  },
+  logout: (req, res) => {
+    req.session.destroy();
+    res.cookie("usuario", null, { maxAge: -1 });
+    res.redirect("/");
+  }
 };
 
 module.exports = mainController;

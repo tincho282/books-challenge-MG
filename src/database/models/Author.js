@@ -16,7 +16,7 @@ module.exports = (sequelize, dataTypes) => {
   let config = {
     tableName: 'Authors',
     timestamps: false
-  };
+ };
 
   const Author = sequelize.define(alias, cols, config);
 
@@ -26,7 +26,9 @@ module.exports = (sequelize, dataTypes) => {
       through: 'BooksAuthors',
       foreingKey: 'AuthorId',
       otherKey: 'BookId',
-      timestamps: false
+      timestamps: false,
+      onDelete: 'NULL',
+      onUpdate: 'CASCADE'
     });
   };
 
